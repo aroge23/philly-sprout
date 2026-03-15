@@ -22,6 +22,8 @@ import {
 } from "@/components/ui/card";
 import { createSubmission, type SubmissionState } from "./actions";
 
+type GeoPermissionState = "unknown" | "granted" | "prompt" | "denied" | "unsupported";
+
 const CRITERIA_FIELDS = [
   { name: "pit_size", label: "Pit Size", description: "Tree pit is at least 3' × 3'" },
   { name: "pit_edge_clearance", label: "Pit Edge Clearance", description: "Pit edge is ≥ 2' from curb face" },
@@ -62,10 +64,62 @@ export function SubmissionForm() {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locatingGps, setLocatingGps] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
+  const [geoPermission, setGeoPermission] = useState<GeoPermissionState>("unknown");
+  const [isIOSSafari, setIsIOSSafari] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    acquireLocation();
+    const ua = navigator.userAgent;
+    const isiOS =
+      /iP(hone|ad|od)/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+    setIsIOSSafari(isiOS && isSafari);
+
+    if (!navigator.geolocation) {
+      setGeoPermission("unsupported");
+      setGpsError("Geolocation is not supported by this browser.");
+      return;
+    }
+
+    if (!window.isSecureContext) {
+      setGpsError("Location access requires HTTPS. Open this site over a secure connection.");
+      return;
+    }
+
+    if (!navigator.permissions?.query) {
+      setGeoPermission("prompt");
+      return;
+    }
+
+    let isMounted = true;
+    navigator.permissions
+      .query({ name: "geolocation" })
+      .then((permissionStatus) => {
+        if (!isMounted) return;
+        const state = permissionStatus.state as GeoPermissionState;
+        setGeoPermission(state);
+
+        if (state === "granted") {
+          acquireLocation();
+        }
+
+        permissionStatus.onchange = () => {
+          const nextState = permissionStatus.state as GeoPermissionState;
+          setGeoPermission(nextState);
+          if (nextState === "granted") {
+            acquireLocation();
+          }
+        };
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        // Some mobile browsers do not fully support permissions.query.
+        setGeoPermission("prompt");
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   function acquireLocation() {
@@ -79,12 +133,30 @@ export function SubmissionForm() {
       (pos) => {
         setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setLocatingGps(false);
+        setGeoPermission("granted");
       },
       (err) => {
-        setGpsError(err.message);
+        if (err.code === err.PERMISSION_DENIED) {
+          setGeoPermission("denied");
+          if (isIOSSafari) {
+            setGpsError(
+              "Location access is off for Safari on this iPhone/iPad. Turn it on in iOS Settings, then retry.",
+            );
+          } else {
+            setGpsError(
+              "Location permission is blocked. Tap Allow in the browser prompt, or enable Location for this site in your browser settings.",
+            );
+          }
+        } else if (err.code === err.POSITION_UNAVAILABLE) {
+          setGpsError("Unable to determine your location right now. Move to an open area and retry.");
+        } else if (err.code === err.TIMEOUT) {
+          setGpsError("Timed out while getting your location. Please retry.");
+        } else {
+          setGpsError(err.message);
+        }
         setLocatingGps(false);
       },
-      { enableHighAccuracy: true, timeout: 15000 },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
     );
   }
 
@@ -192,10 +264,34 @@ export function SubmissionForm() {
             ) : gpsError ? (
               <div className="flex flex-col gap-2">
                 <p className="text-destructive text-xs">{gpsError}</p>
+                {geoPermission === "denied" && (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      If no prompt appears, open your browser site settings and set Location to
+                      Allow, then return and retry.
+                    </p>
+                    {isIOSSafari && (
+                      <div className="rounded-md border border-amber-300/60 bg-amber-50 p-3 text-xs text-amber-900">
+                        <p className="font-medium">Safari location is currently disabled</p>
+                        <ol className="mt-2 list-decimal space-y-1 pl-4">
+                          <li>Open iPhone Settings</li>
+                          <li>Go to Privacy &amp; Security -&gt; Location Services</li>
+                          <li>Select Safari Websites</li>
+                          <li>Choose Ask Next Time or When I Share</li>
+                          <li>Enable Precise Location</li>
+                        </ol>
+                      </div>
+                    )}
+                  </>
+                )}
                 <Button type="button" variant="outline" size="sm" onClick={acquireLocation}>
                   Retry
                 </Button>
               </div>
+            ) : geoPermission === "prompt" || geoPermission === "unknown" ? (
+              <Button type="button" variant="outline" size="sm" onClick={acquireLocation}>
+                Use current location
+              </Button>
             ) : null}
           </div>
 

@@ -30,7 +30,7 @@ export function CtaSection() {
             asChild
             size="lg"
             variant="outline"
-            className="w-full sm:w-auto border-white/40 text-primary-foreground hover:bg-white/10 text-base min-h-[52px]"
+            className="w-full sm:w-auto bg-transparent border-white/40 text-primary-foreground hover:bg-white/10 text-base min-h-[52px]"
           >
             <Link href="/auth/login">Sign In</Link>
           </Button>

@@ -75,6 +75,41 @@ const quickActions = [
   },
 ];
 
+async function DashboardStats() {
+  const supabase = await createClient();
+
+  const { count: totalCount } = await supabase
+    .from("tree_candidates")
+    .select("*", { count: "exact", head: true });
+
+  const { count: suitableCount } = await supabase
+    .from("tree_candidates")
+    .select("*", { count: "exact", head: true })
+    .eq("overall_suitability", "Likely Suitable");
+
+  const stats = [
+    { label: "Submissions", value: totalCount ?? 0, icon: FileCheck },
+    { label: "Suitable", value: suitableCount ?? 0, icon: TreePine },
+    { label: "Reports", value: 0, icon: MapPin },
+  ];
+
+  return (
+    <div className="grid grid-cols-3 gap-3">
+      {stats.map(({ label, value, icon: Icon }) => (
+        <Card key={label} className="border-border">
+          <CardContent className="flex flex-col items-center justify-center gap-1 pt-4 pb-3 px-2 text-center">
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary">
+              <Icon className="w-4 h-4" />
+            </div>
+            <p className="text-xl font-bold text-foreground leading-none">{value}</p>
+            <p className="text-xs text-muted-foreground leading-tight">{label}</p>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 async function RecentSubmissionsMap() {
   const supabase = await createClient();
   const { data: submissions } = await supabase
@@ -134,24 +169,24 @@ export default function ProtectedPage() {
         <WelcomeBanner />
       </Suspense>
 
-      {/* Stats row — always 3 columns (compact on mobile) */}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: "Submissions", value: "0", icon: FileCheck },
-          { label: "Approved", value: "0", icon: TreePine },
-          { label: "Reports", value: "0", icon: MapPin },
-        ].map(({ label, value, icon: Icon }) => (
-          <Card key={label} className="border-border">
-            <CardContent className="flex flex-col items-center justify-center gap-1 pt-4 pb-3 px-2 text-center">
-              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary">
-                <Icon className="w-4 h-4" />
-              </div>
-              <p className="text-xl font-bold text-foreground leading-none">{value}</p>
-              <p className="text-xs text-muted-foreground leading-tight">{label}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* Stats row */}
+      <Suspense
+        fallback={
+          <div className="grid grid-cols-3 gap-3">
+            {["Submissions", "Suitable", "Reports"].map((label) => (
+              <Card key={label} className="border-border">
+                <CardContent className="flex flex-col items-center justify-center gap-1 pt-4 pb-3 px-2 text-center">
+                  <div className="w-8 h-8 rounded-lg bg-muted animate-pulse" />
+                  <div className="w-6 h-5 rounded bg-muted animate-pulse" />
+                  <p className="text-xs text-muted-foreground leading-tight">{label}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        }
+      >
+        <DashboardStats />
+      </Suspense>
 
       {/* Map preview */}
       <Suspense

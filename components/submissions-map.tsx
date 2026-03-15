@@ -67,6 +67,7 @@ export type Submission = {
 type SubmissionsMapProps = {
   submissions: Submission[];
   height?: string;
+  showCanopy?: boolean;
 };
 
 const suitabilityConfig: Record<string, { color: string; label: string }> = {
@@ -135,13 +136,23 @@ function buildPopupHtml(submission: Submission, isDark: boolean) {
   </div>`;
 }
 
+const CANOPY_COLORS: Record<string, string> = {
+  very_low: "#ef4444",
+  low: "#f97316",
+  moderate: "#eab308",
+  good: "#22c55e",
+  high: "#15803d",
+};
+
 export function SubmissionsMap({
   submissions,
   height = "400px",
+  showCanopy = false,
 }: SubmissionsMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const tileLayerRef = useRef<L.TileLayer | null>(null);
+  const canopyLayerRef = useRef<L.GeoJSON | null>(null);
   const { resolvedTheme } = useTheme();
 
   const isDark = resolvedTheme === "dark";
@@ -183,6 +194,7 @@ export function SubmissionsMap({
       map.remove();
       mapRef.current = null;
       tileLayerRef.current = null;
+      canopyLayerRef.current = null;
     };
   }, [submissions]);
 
@@ -200,6 +212,47 @@ export function SubmissionsMap({
       maxZoom: 19,
     }).addTo(mapRef.current);
   }, [isDark, submissions]);
+
+  // Toggle canopy overlay
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    if (!showCanopy) {
+      if (canopyLayerRef.current) {
+        canopyLayerRef.current.remove();
+        canopyLayerRef.current = null;
+      }
+      return;
+    }
+
+    // Already loaded
+    if (canopyLayerRef.current) return;
+
+    fetch("/data/philly-neighborhoods.geojson")
+      .then((res) => res.json())
+      .then((geojson) => {
+        if (!mapRef.current || !showCanopy) return;
+
+        canopyLayerRef.current = L.geoJSON(geojson, {
+          style: (feature) => {
+            const tier = feature?.properties?.canopy_tier ?? "moderate";
+            return {
+              fillColor: CANOPY_COLORS[tier] ?? CANOPY_COLORS.moderate,
+              fillOpacity: 0.25,
+              color: isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.15)",
+              weight: 1,
+            };
+          },
+          onEachFeature: (feature, layer) => {
+            const props = feature.properties;
+            layer.bindTooltip(
+              `<strong>${props.MAPNAME}</strong><br/>Canopy: ${props.canopy_label}`,
+              { sticky: true }
+            );
+          },
+        }).addTo(mapRef.current);
+      });
+  }, [showCanopy, isDark]);
 
   return (
     <div

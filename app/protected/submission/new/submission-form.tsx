@@ -21,6 +21,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
+import { CameraCaptureView } from "@/components/camera-capture-view";
+import { CameraPermissionPrompt } from "@/components/camera-permission-prompt";
 import { createSubmission, type SubmissionState } from "./actions";
 
 type GeoPermissionState = "unknown" | "granted" | "prompt" | "denied" | "unsupported";
@@ -348,35 +350,11 @@ export function SubmissionForm() {
             </div>
           )}
           {cameraStream ? (
-            <div className="space-y-3">
-              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg border border-border bg-black">
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="h-full w-full object-cover"
-                />
-              </div>
-              <div className="flex gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="flex-1"
-                  onClick={closeCamera}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  className="flex-1"
-                  onClick={handleCapturePhoto}
-                >
-                  <Camera className="w-4 h-4 mr-2" />
-                  Capture
-                </Button>
-              </div>
-            </div>
+            <CameraCaptureView
+              ref={videoRef}
+              onCapture={handleCapturePhoto}
+              onCancel={closeCamera}
+            />
           ) : photoPreview ? (
             <div className="relative">
               {uploadingPhoto && (
@@ -401,48 +379,11 @@ export function SubmissionForm() {
               </Button>
             </div>
           ) : showCameraPermissionUI ? (
-            <div className="flex flex-col items-center gap-4 py-8 px-4 rounded-lg border border-border bg-muted/30">
-              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 text-primary">
-                <Camera className="w-6 h-6" />
-              </div>
-              <div className="text-center space-y-1">
-                <p className="text-sm font-medium text-foreground">
-                  Allow camera access
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  This site needs camera permission to take a photo of the tree pit.
-                </p>
-              </div>
-              <div className="flex gap-2 w-full">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => setShowCameraPermissionUI(false)}
-                  disabled={requestingCamera}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  className="flex-1"
-                  onClick={handleTapToTakePhoto}
-                  disabled={requestingCamera}
-                >
-                  {requestingCamera ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Opening…
-                    </>
-                  ) : (
-                    <>
-                      <Camera className="w-4 h-4 mr-2" />
-                      Allow & open camera
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
+            <CameraPermissionPrompt
+              onAllow={handleTapToTakePhoto}
+              onCancel={() => setShowCameraPermissionUI(false)}
+              isRequesting={requestingCamera}
+            />
           ) : (
             <button
               type="button"

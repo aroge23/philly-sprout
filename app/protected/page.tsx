@@ -1,16 +1,15 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Suspense } from "react";
-import { TreePine, MapPin, FileCheck, PlusCircle } from "lucide-react";
+import { TreePine, MapPin, FileCheck, PlusCircle, Map } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import Link from "next/link";
+import { SubmissionsMapLoader } from "@/components/submissions-map-loader";
+import type { Submission } from "@/components/submissions-map";
 
 async function WelcomeBanner() {
   const supabase = await createClient();
@@ -46,7 +45,7 @@ const quickActions = [
     icon: FileCheck,
     title: "My Submissions",
     description: "View the status of all your previously submitted sites.",
-    href: "#",
+    href: "/protected/map",
     cta: "View All",
     primary: false,
   },
@@ -59,6 +58,51 @@ const quickActions = [
     primary: false,
   },
 ];
+
+async function RecentSubmissionsMap() {
+  const supabase = await createClient();
+  const { data: submissions } = await supabase
+    .from("tree_candidates")
+    .select(
+      "id, latitude, longitude, street_address, overall_suitability, created_at, notes"
+    )
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  const list = (submissions as Submission[]) ?? [];
+
+  if (list.length === 0) return null;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-base sm:text-lg font-semibold text-foreground">
+          Recent Submissions
+        </h2>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/protected/map">View Full Map</Link>
+        </Button>
+      </div>
+      <div className="rounded-xl overflow-hidden border border-border">
+        <SubmissionsMapLoader submissions={list} height="300px" />
+      </div>
+      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mt-2">
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-green-500" />
+          Likely Suitable
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
+          Possibly Suitable
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
+          Likely Unsuitable
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export default function ProtectedPage() {
   return (
@@ -92,6 +136,20 @@ export default function ProtectedPage() {
           </Card>
         ))}
       </div>
+
+      {/* Map preview */}
+      <Suspense
+        fallback={
+          <div className="h-[300px] flex items-center justify-center bg-muted/30 rounded-xl">
+            <div className="flex flex-col items-center gap-2 text-muted-foreground">
+              <Map className="w-6 h-6 animate-pulse" />
+              <p className="text-sm">Loading map...</p>
+            </div>
+          </div>
+        }
+      >
+        <RecentSubmissionsMap />
+      </Suspense>
 
       {/* Quick actions — horizontal list on mobile */}
       <div>

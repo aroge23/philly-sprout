@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { Map } from "lucide-react";
+import { Map, Trees } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Submission } from "@/components/submissions-map";
 
@@ -29,6 +29,14 @@ const FILTERS = [
   { key: "Not Rated", color: "bg-gray-500", activeRing: "ring-gray-500/50" },
 ] as const;
 
+const CANOPY_LEGEND = [
+  { label: "Very Low", color: "bg-red-500" },
+  { label: "Low", color: "bg-orange-500" },
+  { label: "Moderate", color: "bg-yellow-500" },
+  { label: "Good", color: "bg-green-500" },
+  { label: "High", color: "bg-green-700" },
+];
+
 export function SubmissionsMapLoader({
   submissions,
   height,
@@ -41,12 +49,12 @@ export function SubmissionsMapLoader({
   const [activeFilters, setActiveFilters] = useState<Set<string>>(
     () => new Set(FILTERS.map((f) => f.key))
   );
+  const [showCanopy, setShowCanopy] = useState(false);
 
   const toggleFilter = (key: string) => {
     setActiveFilters((prev) => {
       const next = new Set(prev);
       if (next.has(key)) {
-        // Don't allow deselecting all
         if (next.size === 1) return prev;
         next.delete(key);
       } else {
@@ -67,7 +75,7 @@ export function SubmissionsMapLoader({
   return (
     <div className="flex flex-col gap-3">
       {showFilters && (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {FILTERS.map((f) => {
             const active = activeFilters.has(f.key);
             return (
@@ -81,19 +89,50 @@ export function SubmissionsMapLoader({
                     : "bg-muted/50 border-transparent text-muted-foreground opacity-50"
                 )}
               >
-                <span
-                  className={cn("w-2.5 h-2.5 rounded-full", f.color)}
-                />
+                <span className={cn("w-2.5 h-2.5 rounded-full", f.color)} />
                 {f.key}
               </button>
             );
           })}
+
+          <div className="w-px h-5 bg-border mx-1" />
+
+          <button
+            onClick={() => setShowCanopy((prev) => !prev)}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border",
+              showCanopy
+                ? "bg-green-500/10 border-green-500/30 text-green-700 dark:text-green-400 ring-2 ring-green-500/30"
+                : "bg-muted/50 border-transparent text-muted-foreground"
+            )}
+          >
+            <Trees className="w-3.5 h-3.5" />
+            Needs Trees
+          </button>
+
           <span className="flex items-center text-xs text-muted-foreground ml-1">
             {filtered.length} of {submissions.length}
           </span>
         </div>
       )}
-      <SubmissionsMap submissions={filtered} height={height} />
+
+      {showFilters && showCanopy && (
+        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+          <span className="font-medium">Canopy coverage:</span>
+          {CANOPY_LEGEND.map((item) => (
+            <span key={item.label} className="flex items-center gap-1">
+              <span className={cn("w-2.5 h-2.5 rounded-sm", item.color)} />
+              {item.label}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <SubmissionsMap
+        submissions={filtered}
+        height={height}
+        showCanopy={showCanopy}
+      />
     </div>
   );
 }

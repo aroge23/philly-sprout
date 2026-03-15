@@ -8,6 +8,15 @@ import Link from "next/link";
 import { SubmissionsMapLoader } from "@/components/submissions-map-loader";
 import type { Submission } from "@/components/submissions-map";
 
+type DashboardSubmission = {
+  id: string;
+  created_at: string;
+  street_address: string | null;
+  latitude: number;
+  longitude: number;
+  overall_suitability: string | null;
+};
+
 async function WelcomeBanner() {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getClaims();
@@ -143,6 +152,77 @@ async function RecentSubmissionsMap() {
   );
 }
 
+async function MyRecentSubmissions() {
+  const supabase = await createClient();
+  const { data: authData, error: authError } = await supabase.auth.getClaims();
+
+  if (authError || !authData?.claims) {
+    redirect("/auth/login");
+  }
+
+  const userId = authData.claims.sub as string;
+
+  const { data } = await supabase
+    .from("tree_candidates")
+    .select("id, created_at, street_address, latitude, longitude, overall_suitability")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(3);
+
+  const submissions = (data as DashboardSubmission[] | null) ?? [];
+
+  if (submissions.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-10 sm:py-16 text-center border border-dashed border-border rounded-2xl">
+        <TreePine className="w-10 h-10 text-primary/40 mb-3" />
+        <h3 className="font-semibold text-foreground mb-1">No submissions yet</h3>
+        <p className="text-sm text-muted-foreground max-w-xs px-4">
+          Find a potential tree pit on your block and start your first submission to
+          get the ball rolling.
+        </p>
+        <Button asChild className="mt-5 min-h-[44px] px-6">
+          <Link href="/submission/new">Start Your First Submission</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-base sm:text-lg font-semibold text-foreground">
+          My Recent Submissions
+        </h2>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/submissions">View All</Link>
+        </Button>
+      </div>
+      {submissions.map((submission) => (
+        <div
+          key={submission.id}
+          className="rounded-xl border border-border bg-card px-4 py-3"
+        >
+          <p className="text-sm font-medium text-foreground">
+            {submission.street_address ??
+              `${submission.latitude.toFixed(4)}, ${submission.longitude.toFixed(4)}`}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {new Date(submission.created_at).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+            })}
+            {" • "}
+            {submission.overall_suitability ?? "Unrated"}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   return (
     <div className="flex-1 w-full flex flex-col gap-6 sm:gap-10">
@@ -219,17 +299,15 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="flex flex-col items-center justify-center py-10 sm:py-16 text-center border border-dashed border-border rounded-2xl">
-        <TreePine className="w-10 h-10 text-primary/40 mb-3" />
-        <h3 className="font-semibold text-foreground mb-1">No submissions yet</h3>
-        <p className="text-sm text-muted-foreground max-w-xs px-4">
-          Find a potential tree pit on your block and start your first submission to
-          get the ball rolling.
-        </p>
-        <Button asChild className="mt-5 min-h-[44px] px-6">
-          <Link href="/submission/new">Start Your First Submission</Link>
-        </Button>
-      </div>
+      <Suspense
+        fallback={
+          <div className="rounded-xl border border-border bg-card p-4">
+            <p className="text-sm text-muted-foreground">Loading your submissions...</p>
+          </div>
+        }
+      >
+        <MyRecentSubmissions />
+      </Suspense>
     </div>
   );
 }

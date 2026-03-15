@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { Camera, MapPin, Loader2, ImageIcon, X } from "lucide-react";
+import { Camera, MapPin, Loader2, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +23,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { CameraCaptureView } from "@/components/camera-capture-view";
 import { CameraPermissionPrompt } from "@/components/camera-permission-prompt";
+import { PhotoGallery, type PhotoEntry } from "@/components/photo-gallery";
 import { createSubmission, type SubmissionState } from "./actions";
 
 type GeoPermissionState = "unknown" | "granted" | "prompt" | "denied" | "unsupported";
@@ -37,8 +38,6 @@ const CRITERIA_FIELDS = [
   { name: "pole_hydrant_clearance", label: "Pole / Hydrant Clearance", description: "≥ 10' from fire hydrant, ≥ 5' from utility pole" },
   { name: "tree_clearance", label: "Tree Clearance", description: "≥ 20' from nearest existing tree" },
 ] as const;
-
-type PhotoEntry = { preview: string; url: string | null };
 
 function CriteriaSelect({ name, label, description }: { name: string; label: string; description: string }) {
   return (
@@ -433,66 +432,16 @@ export function SubmissionForm() {
               onCapture={handleCapturePhoto}
               onCancel={closeCamera}
             />
-          ) : expandedPhotoIndex !== null ? (
-            <div className="relative">
-              <img
-                src={photos[expandedPhotoIndex]?.preview}
-                alt={`Site photo ${expandedPhotoIndex + 1}`}
-                className="w-full max-h-80 object-contain rounded-lg border border-border bg-muted"
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                size="icon"
-                className="absolute top-2 right-2 h-8 w-8"
-                onClick={() => setExpandedPhotoIndex(null)}
-                aria-label="Close enlarged view"
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
           ) : photos.length > 0 ? (
             <div className="space-y-3">
-              {uploadingPhoto && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Uploading…</span>
-                </div>
-              )}
-              <div className="flex flex-wrap gap-2">
-                {photos.map((photo, index) => (
-                  <div
-                    key={photo.preview}
-                    className="relative group shrink-0"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setExpandedPhotoIndex(index)}
-                      className="block w-16 h-16 sm:w-20 sm:h-20 rounded-lg border border-border overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-                    >
-                      <img
-                        src={photo.preview}
-                        alt={`Site photo ${index + 1}`}
-                        className="w-full h-full object-cover"
-                      />
-                    </button>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="icon"
-                      className="absolute -top-1 -right-1 h-6 w-6 rounded-full opacity-90 group-hover:opacity-100"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removePhoto(index);
-                      }}
-                      disabled={uploadingPhoto}
-                      aria-label={`Remove photo ${index + 1}`}
-                    >
-                      <X className="w-3 h-3" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
+              <PhotoGallery
+                photos={photos}
+                expandedIndex={expandedPhotoIndex}
+                onExpand={setExpandedPhotoIndex}
+                onClose={() => setExpandedPhotoIndex(null)}
+                onRemove={removePhoto}
+                uploading={uploadingPhoto}
+              />
               <div className="flex gap-2">
                 <Button
                   type="button"

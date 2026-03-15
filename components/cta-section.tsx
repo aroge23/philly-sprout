@@ -15,7 +15,7 @@ export function CtaSection() {
           Want to know if a spot qualifies?
         </h2>
         <p className="text-primary-foreground/80 text-base sm:text-lg mb-8 sm:mb-10 max-w-xl mx-auto">
-          Find out if it qualifies — free. Join Philly residents helping grow
+          Join Philly residents helping grow
           the city&apos;s urban canopy, one tree pit at a time.
         </p>
         <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 justify-center">
@@ -24,7 +24,7 @@ export function CtaSection() {
             size="lg"
             className="w-full sm:w-auto bg-white text-primary hover:bg-green-50 font-semibold text-base min-h-[52px]"
           >
-            <Link href="/auth/sign-up">Get Started — It&apos;s Free</Link>
+            <Link href="/auth/sign-up">Get Started</Link>
           </Button>
           <Button
             asChild

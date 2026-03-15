@@ -7,10 +7,10 @@ import { TreePine, MapPin, Camera } from "lucide-react";
 export function LandingContent() {
   return (
     <div className="max-w-5xl mx-auto space-y-12 sm:space-y-20">
-      {/* Intro — lead with FREE, site suitability, and skeptical audience */}
+      {/* Intro — site suitability and skeptical audience */}
       <div className="text-center space-y-5">
         <p className="text-sm sm:text-base font-semibold text-primary uppercase tracking-wider">
-          Free street trees through PHS
+          Street trees through PHS
         </p>
         <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground leading-tight">
           Want to know if a spot qualifies for a street tree?

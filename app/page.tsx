@@ -18,7 +18,7 @@ export default function Home() {
         mediaSrc="/images/hero-street.jpg"
         bgImageSrc="/images/hero-bg.jpg"
         title="Philly Sprout"
-        date="Free Street Trees · Philadelphia"
+        date="Street Trees · Philadelphia"
         scrollToExpand="Scroll to Expand"
         textBlend={false}
       >

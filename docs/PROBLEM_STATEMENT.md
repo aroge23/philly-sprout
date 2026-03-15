@@ -16,7 +16,7 @@ Philadelphia has **20% tree canopy coverage** — the lowest along the Northeast
 
 **Problem:** Many residents don't know a free program exists. The program is invisible to most people.
 
-**Philly Sprout's role:** Lead with "free" prominently. Make the value proposition impossible to miss.
+**Philly Sprout's role:** Make the value proposition impossible to miss.
 
 ---
 

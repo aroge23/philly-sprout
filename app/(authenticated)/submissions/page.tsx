@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/server";
+import { isAdmin } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
 import { DeleteButton } from "./delete-button";
 
@@ -72,10 +73,10 @@ function formatDate(iso: string) {
 
 function SubmissionCard({
   row,
-  isOwner,
+  canDelete,
 }: {
   row: TreeCandidate;
-  isOwner: boolean;
+  canDelete: boolean;
 }) {
   const { pass, total } = criteriaCount(row);
   return (
@@ -98,7 +99,7 @@ function SubmissionCard({
             <Badge variant={suitabilityVariant(row.overall_suitability)}>
               {row.overall_suitability ?? "Unrated"}
             </Badge>
-            {isOwner && <DeleteButton id={row.id} />}
+            {canDelete && <DeleteButton id={row.id} />}
           </div>
         </div>
       </CardHeader>
@@ -130,6 +131,7 @@ async function SubmissionsContent({
   }
 
   const currentUserId = authData.claims.sub as string;
+  const admin = await isAdmin();
 
   let query = supabase
     .from("tree_candidates")
@@ -191,11 +193,12 @@ async function SubmissionsContent({
       ) : (
         <div className="flex flex-col gap-3">
           {submissions.map((row) => (
-            <SubmissionCard
-              key={row.id}
-              row={row}
-              isOwner={row.user_id === currentUserId}
-            />
+            <Link key={row.id} href={`/protected/submission/${row.id}`}>
+              <SubmissionCard
+                row={row}
+                canDelete={admin || row.user_id === currentUserId}
+              />
+            </Link>
           ))}
         </div>
       )}

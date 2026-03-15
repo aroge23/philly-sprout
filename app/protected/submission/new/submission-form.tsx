@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
-import { Camera, MapPin, Loader2, ImageIcon, Sparkles, RotateCcw } from "lucide-react";
+import { useActionState, useCallback, useEffect, useRef, useState } from "react";
+import { Camera, MapPin, Loader2, ImageIcon, Sparkles, RotateCcw, LocateFixed } from "lucide-react";
+import { forwardGeocode, reverseGeocode } from "@/lib/geocode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,13 +46,41 @@ const CRITERIA_FIELDS: {
   label: string;
   description: string;
 }[] = [
-  { name: "pit_size", label: "Pit Size", description: "Tree pit is at least 3' × 3'" },
-  { name: "pit_edge_clearance", label: "Pit Edge Clearance", description: "Pit edge is ≥ 2' from curb face" },
-  { name: "no_obstructions", label: "No Obstructions", description: "No utilities, grates, or vaults in the pit" },
-  { name: "driveway_clearance", label: "Driveway Clearance", description: "Pit is ≥ 3' from any driveway" },
-  { name: "corner_clearance", label: "Corner Clearance", description: "Pit is ≥ 25' from intersection" },
-  { name: "pole_hydrant_clearance", label: "Pole / Hydrant Clearance", description: "≥ 10' from fire hydrant, ≥ 5' from utility pole" },
-  { name: "tree_clearance", label: "Tree Clearance", description: "≥ 20' from nearest existing tree" },
+  {
+    name: "pit_size",
+    label: "Minimum Tree Pit Size",
+    description: "At least 3 feet × 3 feet of open ground available (larger preferred)",
+  },
+  {
+    name: "pit_edge_clearance",
+    label: "ADA Sidewalk Clearance",
+    description: "Pit edge at least 3 feet from steps, stoops, or walls to keep 3 feet of clear walking path",
+  },
+  {
+    name: "no_obstructions",
+    label: "No Immediate Obstructions",
+    description: "Clear of steps, doorways, alleyways, and handicapped parking signs",
+  },
+  {
+    name: "driveway_clearance",
+    label: "Driveway & Drain Clearance",
+    description: "At least 5 feet from driveways, manhole covers, storm drains, and utility lines",
+  },
+  {
+    name: "corner_clearance",
+    label: "Corner & Signal Clearance",
+    description: "At least 30 feet from street corners, stop signs, and traffic lights",
+  },
+  {
+    name: "pole_hydrant_clearance",
+    label: "Pole & Hydrant Clearance",
+    description: "At least 15 feet from light poles, utility poles, and fire hydrants",
+  },
+  {
+    name: "tree_clearance",
+    label: "Distance from Other Trees",
+    description: "At least 15–30 feet from existing trees (depending on their size)",
+  },
 ];
 
 // ─── Controlled CriteriaSelect ────────────────────────────────────────────────
@@ -162,6 +191,14 @@ export function SubmissionForm() {
   const [platform, setPlatform] = useState<MobilePlatform>("other");
   const [isSafari, setIsSafari] = useState(false);
   const [isChrome, setIsChrome] = useState(false);
+
+  // ── Address / geocoding state ───────────────────────────────────────────
+  const [streetAddress, setStreetAddress] = useState("");
+  const [geocoding, setGeocoding] = useState(false);
+  const streetAddressRef = useRef("");
+  // Which field was last set by the user (so we know which direction to geocode)
+  const locationSourceRef = useRef<"gps" | "address" | null>(null);
+  const geocodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── AI analysis state ────────────────────────────────────────────────────
   const [analysisStatus, setAnalysisStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
@@ -279,18 +316,33 @@ export function SubmissionForm() {
     };
   }, []);
 
-  function acquireLocation() {
+  function acquireLocation(forceReverseGeocode = false) {
     if (!navigator.geolocation) {
       setGpsError("Geolocation is not supported by this browser.");
       return;
     }
     setLocatingGps(true);
     setGpsError(null);
+    locationSourceRef.current = "gps";
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setLocation({ lat, lng });
         setLocatingGps(false);
         setGeoPermission("granted");
+        if (forceReverseGeocode || !streetAddressRef.current) {
+          setGeocoding(true);
+          reverseGeocode(lat, lng)
+            .then((addr) => {
+              if (addr) {
+                setStreetAddress(addr);
+                streetAddressRef.current = addr;
+              }
+            })
+            .catch(() => {})
+            .finally(() => setGeocoding(false));
+        }
       },
       (err) => {
         if (err.code === err.PERMISSION_DENIED) {
@@ -314,6 +366,43 @@ export function SubmissionForm() {
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
     );
   }
+
+  // ── Address change → debounced forward geocode ──────────────────────────
+
+  const handleAddressChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value;
+      setStreetAddress(value);
+      streetAddressRef.current = value;
+      locationSourceRef.current = "address";
+
+      if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
+
+      const trimmed = value.trim();
+      if (trimmed.length < 5) return;
+
+      geocodeTimerRef.current = setTimeout(async () => {
+        setGeocoding(true);
+        try {
+          const result = await forwardGeocode(trimmed);
+          if (result && locationSourceRef.current === "address") {
+            setLocation({ lat: result.lat, lng: result.lng });
+          }
+        } catch {
+          // Silently fail — user can still enter coords via GPS
+        } finally {
+          setGeocoding(false);
+        }
+      }, 800);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
+    };
+  }, []);
 
   // ── Photo upload helpers ─────────────────────────────────────────────────
 
@@ -722,12 +811,25 @@ export function SubmissionForm() {
               </>
             ) : location ? (
               <>
-                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-500/10 text-green-600">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-500/10 text-green-600 flex-shrink-0">
                   <MapPin className="w-4 h-4" />
                 </div>
                 <span className="text-foreground font-mono text-xs">
                   {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
                 </span>
+                {locationSourceRef.current === "address" && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="ml-auto flex-shrink-0 gap-1.5"
+                    onClick={() => acquireLocation(true)}
+                  >
+                    <LocateFixed className="w-3.5 h-3.5" />
+                    <span className="hidden xs:inline">Use device location</span>
+                    <span className="xs:hidden">GPS</span>
+                  </Button>
+                )}
               </>
             ) : gpsError ? (
               <div className="flex flex-col gap-2">
@@ -787,12 +889,25 @@ export function SubmissionForm() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="street_address">Street Address (optional)</Label>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="street_address">Street Address</Label>
+              {geocoding && (
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  {locationSourceRef.current === "address" ? "Looking up…" : "Resolving address…"}
+                </span>
+              )}
+            </div>
             <Input
               id="street_address"
               name="street_address"
               placeholder="e.g. 1234 Walnut St"
+              value={streetAddress}
+              onChange={handleAddressChange}
             />
+            <p className="text-xs text-muted-foreground">
+              Enter an address to auto-fill coordinates, or use GPS above to auto-fill the address.
+            </p>
           </div>
         </CardContent>
       </Card>

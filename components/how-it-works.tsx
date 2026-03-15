@@ -6,7 +6,7 @@ const steps = [
     step: "01",
     title: "Photograph a Site",
     description:
-      "Find a potential tree pit on your block. Open Philly Sprout and snap a photo — the app captures your GPS location automatically.",
+      "Identify a candidate for street tree planting. Open Philly Sprout and snap a photo — the app captures your GPS location automatically.",
   },
   {
     icon: Brain,
@@ -41,7 +41,7 @@ export function HowItWorks() {
             How It Works
           </span>
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground">
-            From sidewalk to submission in minutes — free
+            Is that spot a good candidate for a street tree? Find out in minutes
           </h2>
         </div>
 

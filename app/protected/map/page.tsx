@@ -40,29 +40,7 @@ async function MapContent() {
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full bg-green-500" />
-          Likely Suitable
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full bg-yellow-500" />
-          Possibly Suitable
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full bg-red-500" />
-          Likely Unsuitable
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full bg-gray-500" />
-          Not Rated
-        </span>
-      </div>
-
-      <div>
-        <SubmissionsMapLoader submissions={list} height="70vh" />
-      </div>
+      <SubmissionsMapLoader submissions={list} height="70vh" showFilters />
     </>
   );
 }

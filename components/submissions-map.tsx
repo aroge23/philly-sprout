@@ -4,6 +4,9 @@ import { useEffect, useRef } from "react";
 import { useTheme } from "next-themes";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import "leaflet.markercluster";
+import "leaflet.markercluster/dist/MarkerCluster.css";
+import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 
 const PHILADELPHIA_CENTER: [number, number] = [39.9526, -75.1652];
 const DEFAULT_ZOOM = 12;
@@ -20,6 +23,36 @@ const TILE_LAYERS = {
       '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
   },
 };
+
+// Custom cluster icon styled to match the app
+function createClusterIcon(cluster: L.MarkerCluster) {
+  const count = cluster.getChildCount();
+  let size = 32;
+  let fontSize = 12;
+  if (count >= 10) { size = 38; fontSize = 13; }
+  if (count >= 25) { size = 44; fontSize = 14; }
+
+  return L.divIcon({
+    className: "",
+    html: `<div style="
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: ${size}px;
+      height: ${size}px;
+      background: rgba(34, 107, 60, 0.85);
+      border: 2px solid white;
+      border-radius: 50%;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      color: white;
+      font-weight: 700;
+      font-size: ${fontSize}px;
+      font-family: system-ui, sans-serif;
+    ">${count}</div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
+}
 
 export type Submission = {
   id: string;
@@ -119,19 +152,32 @@ export function SubmissionsMap({
 
     const map = L.map(containerRef.current, {
       zoomControl: false,
+      maxZoom: 19,
     }).setView(PHILADELPHIA_CENTER, DEFAULT_ZOOM);
     mapRef.current = map;
 
     // Add zoom control to bottom-right
     L.control.zoom({ position: "bottomright" }).addTo(map);
 
+    // Create marker cluster group
+    const clusterGroup = L.markerClusterGroup({
+      iconCreateFunction: createClusterIcon,
+      maxClusterRadius: 50,
+      spiderfyOnMaxZoom: true,
+      showCoverageOnHover: false,
+      zoomToBoundsOnClick: true,
+      animate: true,
+    });
+
     for (const submission of submissions) {
-      L.marker([submission.latitude, submission.longitude], {
+      const marker = L.marker([submission.latitude, submission.longitude], {
         icon: createColoredIcon(submission.overall_suitability),
-      })
-        .addTo(map)
-        .bindPopup(buildPopupHtml(submission, isDark));
+      }).bindPopup(buildPopupHtml(submission, isDark));
+
+      clusterGroup.addLayer(marker);
     }
+
+    map.addLayer(clusterGroup);
 
     return () => {
       map.remove();

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Suspense } from "react";
-import { TreePine, MapPin, FileCheck, PlusCircle, Map } from "lucide-react";
+import { TreePine, MapPin, FileCheck, PlusCircle, Map, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -45,8 +45,24 @@ const quickActions = [
     icon: FileCheck,
     title: "My Submissions",
     description: "View the status of all your previously submitted sites.",
-    href: "/protected/map",
+    href: "/protected/submissions",
     cta: "View All",
+    primary: false,
+  },
+  {
+    icon: Globe,
+    title: "All Submissions",
+    description: "Browse every submitted site across the community.",
+    href: "/protected/submissions?view=all",
+    cta: "Browse",
+    primary: false,
+  },
+  {
+    icon: Map,
+    title: "Map View",
+    description: "See all submitted sites plotted on a map.",
+    href: "/protected/map",
+    cta: "Open Map",
     primary: false,
   },
   {

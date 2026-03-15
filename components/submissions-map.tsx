@@ -134,7 +134,7 @@ function buildPopupHtml(submission: Submission, isDark: boolean) {
     </p>
     <p style="margin:0;font-size:0.8em;color:${mutedColor}">${formatDate(submission.created_at)}</p>
     ${notesHtml}
-    <a href="/protected/submission/${submission.id}" style="display:inline-block;margin-top:8px;font-size:0.8em;color:${isDark ? "#93c5fd" : "#2563eb"};text-decoration:none;font-weight:500">View details →</a>
+    <a href="/submission/${submission.id}" style="display:inline-block;margin-top:8px;font-size:0.8em;color:${isDark ? "#93c5fd" : "#2563eb"};text-decoration:none;font-weight:500">View details →</a>
   </div>`;
 }
 

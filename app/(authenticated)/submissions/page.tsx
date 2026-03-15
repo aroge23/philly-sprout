@@ -193,7 +193,7 @@ async function SubmissionsContent({
       ) : (
         <div className="flex flex-col gap-3">
           {submissions.map((row) => (
-            <Link key={row.id} href={`/protected/submission/${row.id}`}>
+            <Link key={row.id} href={`/submission/${row.id}`}>
               <SubmissionCard
                 row={row}
                 canDelete={admin || row.user_id === currentUserId}

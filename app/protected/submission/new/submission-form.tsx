@@ -299,8 +299,9 @@ export function SubmissionForm() {
     setRequestingCamera(true);
     setPhotoError(null);
     try {
+      const facingMode = platform === "ios" || platform === "android" ? "environment" : "user";
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
+        video: { facingMode: { ideal: facingMode } },
       });
       setShowCameraPermissionUI(false);
       setCameraStream(stream);

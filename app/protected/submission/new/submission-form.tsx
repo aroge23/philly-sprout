@@ -96,6 +96,10 @@ export function SubmissionForm() {
     void refreshGeoPermissionState();
   }
 
+  function handleRetryRefresh() {
+    window.location.reload();
+  }
+
   useEffect(() => {
     const ua = navigator.userAgent;
     const isiOS =
@@ -359,7 +363,7 @@ export function SubmissionForm() {
                     )}
                   </>
                 )}
-                <Button type="button" variant="outline" size="sm" onClick={handleRetryLocation}>
+                <Button type="button" variant="outline" size="sm" onClick={handleRetryRefresh}>
                   Retry
                 </Button>
               </div>

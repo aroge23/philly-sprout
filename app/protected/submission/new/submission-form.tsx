@@ -70,6 +70,35 @@ export function SubmissionForm() {
   const [isChrome, setIsChrome] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  async function refreshGeoPermissionState(): Promise<GeoPermissionState> {
+    if (!navigator.permissions?.query) {
+      return "unknown";
+    }
+
+    try {
+      const permissionStatus = await navigator.permissions.query({
+        name: "geolocation",
+      });
+      const state = permissionStatus.state as GeoPermissionState;
+      setGeoPermission(state);
+      return state;
+    } catch {
+      return "unknown";
+    }
+  }
+
+  async function handleRetryLocation() {
+    const currentPermission = await refreshGeoPermissionState();
+
+    // If permission is still denied, we still try once more in case
+    // platform/browser state has changed but permission API lags behind.
+    if (currentPermission === "denied") {
+      setGeoPermission("denied");
+    }
+
+    acquireLocation();
+  }
+
   useEffect(() => {
     const ua = navigator.userAgent;
     const isiOS =
@@ -126,6 +155,21 @@ export function SubmissionForm() {
 
     return () => {
       isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    function syncOnReturn() {
+      if (document.visibilityState === "hidden") return;
+      void refreshGeoPermissionState();
+    }
+
+    window.addEventListener("focus", syncOnReturn);
+    document.addEventListener("visibilitychange", syncOnReturn);
+
+    return () => {
+      window.removeEventListener("focus", syncOnReturn);
+      document.removeEventListener("visibilitychange", syncOnReturn);
     };
   }, []);
 
@@ -318,12 +362,12 @@ export function SubmissionForm() {
                     )}
                   </>
                 )}
-                <Button type="button" variant="outline" size="sm" onClick={acquireLocation}>
+                <Button type="button" variant="outline" size="sm" onClick={handleRetryLocation}>
                   Retry
                 </Button>
               </div>
             ) : geoPermission === "prompt" || geoPermission === "unknown" ? (
-              <Button type="button" variant="outline" size="sm" onClick={acquireLocation}>
+              <Button type="button" variant="outline" size="sm" onClick={handleRetryLocation}>
                 Use current location
               </Button>
             ) : null}

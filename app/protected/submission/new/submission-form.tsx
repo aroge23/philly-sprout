@@ -20,7 +20,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { createClient } from "@/lib/supabase/client";
+import { CameraCaptureView } from "@/components/camera-capture-view";
+import { CameraPermissionPrompt } from "@/components/camera-permission-prompt";
 import { createSubmission, type SubmissionState } from "./actions";
+
+type GeoPermissionState = "unknown" | "granted" | "prompt" | "denied" | "unsupported";
+type MobilePlatform = "ios" | "android" | "other";
 
 const CRITERIA_FIELDS = [
   { name: "pit_size", label: "Pit Size", description: "Tree pit is at least 3' × 3'" },
@@ -58,13 +64,125 @@ export function SubmissionForm() {
   );
 
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [showCameraPermissionUI, setShowCameraPermissionUI] = useState(false);
+  const [requestingCamera, setRequestingCamera] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [cameraUnsupported, setCameraUnsupported] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locatingGps, setLocatingGps] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
+  const [geoPermission, setGeoPermission] = useState<GeoPermissionState>("unknown");
+  const [platform, setPlatform] = useState<MobilePlatform>("other");
+  const [isSafari, setIsSafari] = useState(false);
+  const [isChrome, setIsChrome] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
+  async function refreshGeoPermissionState(): Promise<GeoPermissionState> {
+    if (!navigator.permissions?.query) {
+      return "unknown";
+    }
+
+    try {
+      const permissionStatus = await navigator.permissions.query({
+        name: "geolocation",
+      });
+      const state = permissionStatus.state as GeoPermissionState;
+      setGeoPermission(state);
+      return state;
+    } catch {
+      return "unknown";
+    }
+  }
+
+  function handleRetryLocation() {
+    // Keep geolocation request directly in the user-gesture call stack.
+    // Some mobile browsers suppress permission prompts if we await first.
     acquireLocation();
+
+    // Refresh the permission state in parallel for UI messaging.
+    void refreshGeoPermissionState();
+  }
+
+  function handleRetryRefresh() {
+    window.location.reload();
+  }
+
+  useEffect(() => {
+    const ua = navigator.userAgent;
+    const isiOS =
+      /iP(hone|ad|od)/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const isAndroid = /Android/.test(ua);
+    const safari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+    const chrome = /Chrome|CriOS/.test(ua) && !/Edg|OPR|SamsungBrowser|DuckDuckGo/.test(ua);
+
+    setPlatform(isiOS ? "ios" : isAndroid ? "android" : "other");
+    setIsSafari(safari);
+    setIsChrome(chrome);
+
+    if (!navigator.geolocation) {
+      setGeoPermission("unsupported");
+      setGpsError("Geolocation is not supported by this browser.");
+      return;
+    }
+
+    if (!window.isSecureContext) {
+      setGpsError("Location access requires HTTPS. Open this site over a secure connection.");
+      return;
+    }
+
+    if (!navigator.permissions?.query) {
+      setGeoPermission("prompt");
+      return;
+    }
+
+    let isMounted = true;
+    navigator.permissions
+      .query({ name: "geolocation" })
+      .then((permissionStatus) => {
+        if (!isMounted) return;
+        const state = permissionStatus.state as GeoPermissionState;
+        setGeoPermission(state);
+
+        if (state === "granted") {
+          acquireLocation();
+        }
+
+        permissionStatus.onchange = () => {
+          const nextState = permissionStatus.state as GeoPermissionState;
+          setGeoPermission(nextState);
+          if (nextState === "granted") {
+            acquireLocation();
+          }
+        };
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        // Some mobile browsers do not fully support permissions.query.
+        setGeoPermission("prompt");
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    function syncOnReturn() {
+      if (document.visibilityState === "hidden") return;
+      void refreshGeoPermissionState();
+    }
+
+    window.addEventListener("focus", syncOnReturn);
+    document.addEventListener("visibilitychange", syncOnReturn);
+
+    return () => {
+      window.removeEventListener("focus", syncOnReturn);
+      document.removeEventListener("visibilitychange", syncOnReturn);
+    };
   }, []);
 
   function acquireLocation() {
@@ -78,32 +196,170 @@ export function SubmissionForm() {
       (pos) => {
         setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setLocatingGps(false);
+        setGeoPermission("granted");
       },
       (err) => {
-        setGpsError(err.message);
+        if (err.code === err.PERMISSION_DENIED) {
+          setGeoPermission("denied");
+          if (platform === "ios" && isSafari) {
+            setGpsError(
+              "Location access is off for Safari on this iPhone/iPad. Turn it on in iOS Settings, then retry.",
+            );
+          } else if (platform === "android") {
+            setGpsError(
+              "Location access is off on this Android device. Enable it in browser/app permissions, then retry.",
+            );
+          } else {
+            setGpsError(
+              "Location permission is blocked. Tap Allow in the browser prompt, or enable Location for this site in your browser settings.",
+            );
+          }
+        } else if (err.code === err.POSITION_UNAVAILABLE) {
+          setGpsError("Unable to determine your location right now. Move to an open area and retry.");
+        } else if (err.code === err.TIMEOUT) {
+          setGpsError("Timed out while getting your location. Please retry.");
+        } else {
+          setGpsError(err.message);
+        }
         setLocatingGps(false);
       },
-      { enableHighAccuracy: true, timeout: 15000 },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
     );
   }
 
-  function handlePhotoCapture(e: React.ChangeEvent<HTMLInputElement>) {
+  async function uploadPhotoFile(file: File) {
+    setPhotoError(null);
+    setPhotoPreview(URL.createObjectURL(file));
+    setUploadingPhoto(true);
+    try {
+      const supabase = createClient();
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !user) {
+        setPhotoError("You must be signed in to upload a photo.");
+        setPhotoPreview(null);
+        return;
+      }
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `${user.id}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from("tree-spots").upload(path, file, {
+        contentType: file.type,
+        upsert: false,
+      });
+      if (error) {
+        const needsBucket =
+          error.message?.toLowerCase().includes("bucket") ||
+          error.message?.toLowerCase().includes("not found") ||
+          error.message?.includes("400");
+        const hint = needsBucket
+          ? " Ensure the tree-spots bucket has policies allowing authenticated uploads in Supabase Dashboard > Storage."
+          : "";
+        setPhotoError(`${error.message}${hint}`);
+        setPhotoPreview(null);
+        return;
+      }
+      const { data } = supabase.storage.from("tree-spots").getPublicUrl(path);
+      setPhotoUrl(data.publicUrl);
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : "Upload failed.");
+      setPhotoPreview(null);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
+
+  async function handlePhotoCapture(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    setPhotoPreview(url);
+    await uploadPhotoFile(file);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   function clearPhoto() {
     setPhotoPreview(null);
+    setPhotoUrl(null);
+    setPhotoError(null);
+    setCameraStream(null);
+    setCameraUnsupported(false);
+    setShowCameraPermissionUI(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
+  async function handleTapToTakePhoto() {
+    if (requestingCamera) return;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setShowCameraPermissionUI(false);
+      setCameraUnsupported(true);
+      setPhotoError("Camera is not supported. Use the button below to choose a photo from your device.");
+      setRequestingCamera(false);
+      return;
+    }
+    setRequestingCamera(true);
+    setPhotoError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } },
+      });
+      setShowCameraPermissionUI(false);
+      setCameraStream(stream);
+    } catch (err) {
+      setShowCameraPermissionUI(false);
+      const isDenied =
+        err instanceof DOMException &&
+        (err.name === "NotAllowedError" || err.name === "PermissionDeniedError");
+      setPhotoError(
+        isDenied
+          ? "Camera access denied. Use the button below to try again or choose a photo."
+          : "Could not access camera. Use the button below to try again or choose a photo.",
+      );
+    } finally {
+      setRequestingCamera(false);
+    }
+  }
+
+  function closeCamera() {
+    cameraStream?.getTracks().forEach((track) => track.stop());
+    setCameraStream(null);
+  }
+
+  function handleCapturePhoto() {
+    const video = videoRef.current;
+    if (!video || !cameraStream || video.readyState !== 4) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0);
+    canvas.toBlob(
+      async (blob) => {
+        if (!blob) return;
+        closeCamera();
+        const file = new File([blob], `photo-${Date.now()}.jpg`, { type: "image/jpeg" });
+        await uploadPhotoFile(file);
+      },
+      "image/jpeg",
+      0.9,
+    );
+  }
+
+  useEffect(() => {
+    if (cameraStream && videoRef.current) {
+      videoRef.current.srcObject = cameraStream;
+    }
+    return () => {
+      cameraStream?.getTracks().forEach((track) => track.stop());
+    };
+  }, [cameraStream]);
+
   return (
     <form action={formAction} className="flex flex-col gap-6">
-      {/* Hidden GPS fields */}
+      {/* Hidden fields */}
       <input type="hidden" name="latitude" value={location?.lat ?? ""} />
       <input type="hidden" name="longitude" value={location?.lng ?? ""} />
+      <input type="hidden" name="photo_url" value={photoUrl ?? ""} />
 
       {/* ── Photo Capture ── */}
       <Card>
@@ -117,8 +373,54 @@ export function SubmissionForm() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {photoPreview ? (
+          {photoError && (
+            <div className="space-y-3 mb-3">
+              <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+                {photoError}
+              </div>
+              <div className="flex gap-2">
+                {!cameraUnsupported && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      setPhotoError(null);
+                      handleTapToTakePhoto();
+                    }}
+                  >
+                    <Camera className="w-4 h-4 mr-2" />
+                    Try camera again
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={cameraUnsupported ? "w-full" : "flex-1"}
+                  onClick={() => {
+                    setPhotoError(null);
+                    fileInputRef.current?.click();
+                  }}
+                >
+                  <ImageIcon className="w-4 h-4 mr-2" />
+                  Choose from device
+                </Button>
+              </div>
+            </div>
+          )}
+          {cameraStream ? (
+            <CameraCaptureView
+              ref={videoRef}
+              onCapture={handleCapturePhoto}
+              onCancel={closeCamera}
+            />
+          ) : photoPreview ? (
             <div className="relative">
+              {uploadingPhoto && (
+                <div className="absolute inset-0 flex items-center justify-center bg-background/80 rounded-lg z-10">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                </div>
+              )}
               <img
                 src={photoPreview}
                 alt="Site preview"
@@ -130,14 +432,21 @@ export function SubmissionForm() {
                 size="icon"
                 className="absolute top-2 right-2 h-8 w-8"
                 onClick={clearPhoto}
+                disabled={uploadingPhoto}
               >
                 <X className="w-4 h-4" />
               </Button>
             </div>
+          ) : showCameraPermissionUI ? (
+            <CameraPermissionPrompt
+              onAllow={handleTapToTakePhoto}
+              onCancel={() => setShowCameraPermissionUI(false)}
+              isRequesting={requestingCamera}
+            />
           ) : (
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => setShowCameraPermissionUI(true)}
               className="w-full flex flex-col items-center justify-center gap-3 py-12 border-2 border-dashed border-border rounded-lg hover:border-primary/40 hover:bg-muted/50 transition-colors cursor-pointer"
             >
               <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 text-primary">
@@ -191,10 +500,57 @@ export function SubmissionForm() {
             ) : gpsError ? (
               <div className="flex flex-col gap-2">
                 <p className="text-destructive text-xs">{gpsError}</p>
-                <Button type="button" variant="outline" size="sm" onClick={acquireLocation}>
+                {geoPermission === "denied" && (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      If no prompt appears, open your browser site settings and set Location to
+                      Allow, then return and retry.
+                    </p>
+                    {platform === "ios" && isSafari && (
+                      <div className="rounded-md border border-amber-300/60 bg-amber-50 p-3 text-xs text-amber-900">
+                        <p className="font-medium">Safari location is currently disabled</p>
+                        <ol className="mt-2 list-decimal space-y-1 pl-4">
+                          <li>Open iPhone Settings</li>
+                          <li>Go to Privacy &amp; Security -&gt; Location Services</li>
+                          <li>Select Safari Websites</li>
+                          <li>Choose Ask Next Time or When I Share</li>
+                          <li>Enable Precise Location</li>
+                        </ol>
+                      </div>
+                    )}
+                    {platform === "android" && (
+                      <div className="rounded-md border border-amber-300/60 bg-amber-50 p-3 text-xs text-amber-900">
+                        <p className="font-medium">Location is currently blocked on Android</p>
+                        <ol className="mt-2 list-decimal space-y-1 pl-4">
+                          {isChrome ? (
+                            <>
+                              <li>Open Chrome Settings</li>
+                              <li>Go to Site settings -&gt; Location</li>
+                              <li>Make sure Location is allowed</li>
+                              <li>In this site&apos;s settings, set Location to Allow</li>
+                            </>
+                          ) : (
+                            <>
+                              <li>Open your browser&apos;s Site Settings</li>
+                              <li>Set Location permission for this site to Allow</li>
+                            </>
+                          )}
+                          <li>Open Android Settings -&gt; Apps -&gt; your browser -&gt; Permissions</li>
+                          <li>Set Location to Allow while using the app</li>
+                          <li>Enable precise/accurate location if available</li>
+                        </ol>
+                      </div>
+                    )}
+                  </>
+                )}
+                <Button type="button" variant="outline" size="sm" onClick={handleRetryRefresh}>
                   Retry
                 </Button>
               </div>
+            ) : geoPermission === "prompt" || geoPermission === "unknown" ? (
+              <Button type="button" variant="outline" size="sm" onClick={handleRetryLocation}>
+                Use current location
+              </Button>
             ) : null}
           </div>
 

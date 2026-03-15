@@ -13,14 +13,14 @@ const steps = [
     step: "02",
     title: "AI Pre-Screening",
     description:
-      "Our Claude Vision AI analyzes the photo for pit size, clearance from driveways, utility lines, and other PHS criteria — in seconds.",
+      "AI analyzes the photo for pit size, clearance from driveways, utility lines, and other PHS criteria — in seconds.",
   },
   {
     icon: FileCheck,
     step: "03",
     title: "Review & Confirm",
     description:
-      "Review the AI assessment, override any unclear judgments, and complete the property owner attestation form.",
+      "Review the AI assessment, override any unclear judgments, and submit your site record.",
   },
   {
     icon: TreePine,

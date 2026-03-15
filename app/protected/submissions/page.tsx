@@ -196,11 +196,12 @@ async function SubmissionsContent({
       ) : (
         <div className="flex flex-col gap-3">
           {submissions.map((row) => (
-            <SubmissionCard
-              key={row.id}
-              row={row}
-              isOwner={row.user_id === currentUserId}
-            />
+            <Link key={row.id} href={`/protected/submission/${row.id}`}>
+              <SubmissionCard
+                row={row}
+                isOwner={row.user_id === currentUserId}
+              />
+            </Link>
           ))}
         </div>
       )}

@@ -11,7 +11,7 @@ const features = [
     icon: ShieldCheck,
     title: "AI-Assisted Criteria Check",
     description:
-      "Claude Vision evaluates pit size, utility clearance, driveway proximity, and more — so you submit only qualified sites.",
+      "AI evaluates pit size, clearance from driveways, utility lines, and other PHS criteria — so you submit only qualified sites.",
   },
   {
     icon: Leaf,

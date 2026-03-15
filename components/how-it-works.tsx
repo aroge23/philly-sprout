@@ -27,7 +27,7 @@ const steps = [
     step: "04",
     title: "Submit to PHS",
     description:
-      "Your verified, AI-assisted site record is ready to support the official PHS application. Help a tree find its home.",
+      "Your submission helps to quickly identify candidate sites and target outreach.",
   },
 ];
 

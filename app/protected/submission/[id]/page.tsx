@@ -243,6 +243,8 @@ async function SubmissionDetail({ id }: { id: string }) {
         </div>
       </div>
 
+      <div className="flex flex-col gap-4 px-4 sm:px-6">
+
       {/* Status */}
       <Card className="border-border">
         <CardHeader className="pb-2">
@@ -397,6 +399,7 @@ async function SubmissionDetail({ id }: { id: string }) {
           />
         </CardContent>
       </Card>
+      </div>
     </>
   );
 }

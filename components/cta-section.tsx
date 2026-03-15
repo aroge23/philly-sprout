@@ -12,11 +12,11 @@ export function CtaSection() {
 
       <div className="relative max-w-2xl mx-auto text-center">
         <h2 className="text-2xl sm:text-3xl md:text-5xl font-bold text-primary-foreground mb-4 sm:mb-6 leading-tight">
-          Ready to plant your first tree?
+          Want to know if a spot qualifies?
         </h2>
         <p className="text-primary-foreground/80 text-base sm:text-lg mb-8 sm:mb-10 max-w-xl mx-auto">
-          Join Philly residents who are helping grow the city&apos;s urban
-          canopy — one tree pit at a time.
+          Find out if it qualifies — free. Join Philly residents helping grow
+          the city&apos;s urban canopy, one tree pit at a time.
         </p>
         <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 justify-center">
           <Button

@@ -49,7 +49,7 @@ export default function ProtectedLayout({
             <Leaf className="h-3 w-3 text-primary" />
             <span>Philly Sprout</span>
           </div>
-          <p>Supporting PHS TreeVitalize</p>
+          <p>Supporting PHS</p>
         </footer>
       </div>
     </main>

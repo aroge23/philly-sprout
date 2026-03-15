@@ -27,7 +27,7 @@ const steps = [
     step: "04",
     title: "Submit to PHS",
     description:
-      "Your verified, AI-assisted site record is ready to support the official PHS TreeVitalize application. Help a tree find its home.",
+      "Your verified, AI-assisted site record is ready to support the official PHS application. Help a tree find its home.",
   },
 ];
 
@@ -41,7 +41,7 @@ export function HowItWorks() {
             How It Works
           </span>
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground">
-            From sidewalk to submission in minutes
+            From sidewalk to submission in minutes — free
           </h2>
         </div>
 
